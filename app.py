@@ -5,9 +5,10 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'planora-secret-key-123'
+app.config['SECRET_KEY'] = 'planora-super-secret-key'
 
-# Fix for Render PostgreSQL URL
+# --- DATABASE CONFIGURATION ---
+# Fixes the 'postgres://' vs 'postgresql://' issue on Render
 uri = os.environ.get('DATABASE_URL', 'sqlite:///planora.db')
 if uri and uri.startswith("postgres://"):
     uri = uri.replace("postgres://", "postgresql://", 1)
@@ -19,7 +20,7 @@ login_manager = LoginManager()
 login_manager.login_view = 'login'
 login_manager.init_app(app)
 
-# Database Models
+# --- DATABASE MODELS ---
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -37,10 +38,12 @@ class Task(db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# Routes
+# --- ROUTES ---
+
 @app.route('/')
 @login_required
 def index():
+    # Only show tasks for the logged-in user, sorted by priority
     tasks = Task.query.filter_by(user_id=current_user.id).order_by(Task.priority.desc()).all()
     total = len(tasks)
     completed = len([t for t in tasks if t.done])
@@ -66,6 +69,7 @@ def register():
         if User.query.filter_by(username=username).first():
             flash('Username already exists')
             return redirect(url_for('register'))
+        
         hashed_pw = generate_password_hash(password, method='pbkdf2:sha256')
         new_user = User(username=username, password=hashed_pw)
         db.session.add(new_user)
@@ -87,8 +91,8 @@ def add_task():
 @app.route('/toggle/<int:task_id>')
 @login_required
 def toggle(task_id):
-    task = Task.query.get(task_id)
-    if task and task.user_id == current_user.id:
+    task = Task.query.filter_by(id=task_id, user_id=current_user.id).first()
+    if task:
         task.done = not task.done
         db.session.commit()
     return redirect(url_for('index'))
@@ -96,10 +100,18 @@ def toggle(task_id):
 @app.route('/delete/<int:task_id>')
 @login_required
 def delete(task_id):
-    task = Task.query.get(task_id)
-    if task and task.user_id == current_user.id:
+    task = Task.query.filter_by(id=task_id, user_id=current_user.id).first()
+    if task:
         db.session.delete(task)
         db.session.commit()
+    return redirect(url_for('index'))
+
+@app.route('/clear')
+@login_required
+def clear_completed():
+    # BUG FIX: Only deletes the logged-in user's finished tasks
+    Task.query.filter_by(user_id=current_user.id, done=True).delete()
+    db.session.commit()
     return redirect(url_for('index'))
 
 @app.route('/logout')
@@ -107,9 +119,11 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-# This creates the database on Render automatically
+# Creates the database tables on Render automatically
 with app.app_context():
     db.create_all()
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Binds to the port provided by Render
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
