@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planora - Register</title>
+    <style>
+        /* (Use the same CSS block as login.html above) */
+        :root { --bg: #fdfbfb; --paper: #ffffff; --mint: #e2f3f5; --text: #4a4e69; }
+        body { background-color: var(--bg); background-image: radial-gradient(#d1d1d1 1px, transparent 0); background-size: 30px 30px; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .container { background: var(--paper); width: 100%; max-width: 320px; padding: 2.5rem; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); text-align: center; }
+        h1 { font-weight: 300; color: #8eb8b4; margin-bottom: 25px; }
+        input { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #eee; border-radius: 8px; outline: none; box-sizing: border-box; }
+        button { width: 100%; border: none; padding: 12px; border-radius: 8px; cursor: pointer; background: #b8e1dd; color: #4a4e69; font-weight: bold; }
+        p { font-size: 0.9rem; color: #888; margin-top: 20px; }
+        a { color: #8eb8b4; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Join Planora</h1>
+        <form method="POST">
+            <input type="text" name="username" placeholder="Choose Username" required>
+            <input type="password" name="password" placeholder="Create Password" required>
+            <button type="submit">Sign Up</button>
+        </form>
+        <p>Already have an account? <a href="/login">Log in</a></p>
+    </div>
+</body>
+</html>
