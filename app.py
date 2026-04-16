@@ -5,15 +5,21 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'planora-secret-key'
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///planora.db').replace("postgres://", "postgresql://", 1)
-db = SQLAlchemy(app)
+app.config['SECRET_KEY'] = 'planora-secret-key-123'
 
+# Fix for Render PostgreSQL URL
+uri = os.environ.get('DATABASE_URL', 'sqlite:///planora.db')
+if uri and uri.startswith("postgres://"):
+    uri = uri.replace("postgres://", "postgresql://", 1)
+app.config['SQLALCHEMY_DATABASE_URI'] = uri
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db = SQLAlchemy(app)
 login_manager = LoginManager()
 login_manager.login_view = 'login'
 login_manager.init_app(app)
 
-# Models
+# Database Models
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -49,14 +55,19 @@ def login():
         if user and check_password_hash(user.password, request.form.get('password')):
             login_user(user)
             return redirect(url_for('index'))
-        flash('Invalid credentials')
+        flash('Invalid Username or Password')
     return render_template('login.html')
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        hashed_pw = generate_password_hash(request.form.get('password'), method='pbkdf2:sha256')
-        new_user = User(username=request.form.get('username'), password=hashed_pw)
+        username = request.form.get('username')
+        password = request.form.get('password')
+        if User.query.filter_by(username=username).first():
+            flash('Username already exists')
+            return redirect(url_for('register'))
+        hashed_pw = generate_password_hash(password, method='pbkdf2:sha256')
+        new_user = User(username=username, password=hashed_pw)
         db.session.add(new_user)
         db.session.commit()
         return redirect(url_for('login'))
@@ -66,10 +77,28 @@ def register():
 @login_required
 def add_task():
     content = request.form.get('content')
-    priority = int(request.form.get('priority', 0))
+    priority = int(request.form.get('priority', 1))
     if content:
-        new_task = Task(content=content, priority=priority, owner=current_user)
+        new_task = Task(content=content, priority=priority, user_id=current_user.id)
         db.session.add(new_task)
+        db.session.commit()
+    return redirect(url_for('index'))
+
+@app.route('/toggle/<int:task_id>')
+@login_required
+def toggle(task_id):
+    task = Task.query.get(task_id)
+    if task and task.user_id == current_user.id:
+        task.done = not task.done
+        db.session.commit()
+    return redirect(url_for('index'))
+
+@app.route('/delete/<int:task_id>')
+@login_required
+def delete(task_id):
+    task = Task.query.get(task_id)
+    if task and task.user_id == current_user.id:
+        db.session.delete(task)
         db.session.commit()
     return redirect(url_for('index'))
 
@@ -78,8 +107,7 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-# Keep your other toggle/delete/clear routes, but add @login_required to them!
-
+# This creates the database on Render automatically
 with app.app_context():
     db.create_all()
 
